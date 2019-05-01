@@ -1,8 +1,5 @@
 import numpy as np
 class Operation:
-
-    def replica(self,matrix,N=2):
-        x= np.repeat(matrix,N,axis=1)
         return np.repeat(x,N,axis=0)
     def lh_replicada(self,matrix):
         matrix[1::2,:] = matrix[1::2,:]*-1
@@ -14,6 +11,8 @@ class Operation:
         matrix[::2,1::2] = matrix[::2,1::2]*-1
         matrix[1::2,::2] = matrix[1::2,::2]*-1
         return matrix
+
+    @staticmethod
     def inversa(self,LL,LH,HL,HH):
         LLrep = self.replica(LL)
         LHrep = self.lh_replicada(self.replica(LH))
