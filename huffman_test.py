@@ -38,7 +38,7 @@ class PrioQueue:
             new_node.left_child = min1
             new_node.right_child = min2
             new_node.left_child.code = "0"
-            new_node.right_child.code="1"
+            new_node.right_child.code= "1"
             new_node.sum_childs()
             
             self.put(new_node)
@@ -52,6 +52,8 @@ def huffman_coding(prob_list):
 
     for i in prob_list:
         cola.put(Prob_node(symbol= i[0],prob = i[1]))
+    
+    cola.put(Prob_node(symbol="eof",prob=0))
 
     tree = cola.create_tree()
 
@@ -71,24 +73,26 @@ def search_tree_codes(tree,code,dictionary):
     
 
 def encode(dictionary, array):
-    code = ""
+    code = "1"
     for i in array:
         code = code + dictionary[i]
-        
-    print(code[:10], len(code))
+    code = code + dictionary["eof"]
+    code = code + len(code)%8 * "0"
     return int(code,2)
 
 def decode(dictionary, string_bin):
     code = ""
-    print(len(string_bin),string_bin[:10])
+    
     array = np.zeros(shape=(480*848),dtype=np.uint8)
 
     cnt = 0
-    if (len(string_bin)%2!=0):
-        string_bin = string_bin[1:]
+    string_bin = string_bin[3:]
     for i in string_bin:
-        if i =="b":i = "0"
+        if i =="b":
+            i = "0"
         code = code + i
+        if code == dictionary["eof"]:
+            break
         if code in dictionary.values():
             array[cnt] = list(dictionary.keys())[list(dictionary.values()).index(code)]
             code=""
