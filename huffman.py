@@ -1,182 +1,117 @@
-import heapq
-import os
-from functools import total_ordering
+import numpy as np
 
-"""
-Code for Huffman Coding, compression and decompression. 
-Explanation at http://bhrigu.me/blog/2017/01/17/huffman-coding-python-implementation/
-"""
+class Prob_node:
+    def __init__(self, symbol = "", code = "", prob=0):
+        self.symbol = symbol
+        self.code = code
+        self.prob = prob
+        self.left_child = None
+        self.right_child = None
 
-@total_ordering
-class HeapNode:
-	def __init__(self, char, freq):
-		self.char = char
-		self.freq = freq
-		self.left = None
-		self.right = None
+    def sum_childs(self):
+        if self.left_child != None and self.right_child != None:
+            self.prob = self.left_child.prob + self.right_child.prob
+        else:
+            print("Error no childs")
 
-	# defining comparators less_than and equals
-	def __lt__(self, other):
-		return self.freq < other.freq
+class PrioQueue:
+    def __init__(self):
+        self.items = []
 
-	def __eq__(self, other):
-		if(other == None):
-			return False
-		if(not isinstance(other, HeapNode)):
-			return False
-		return self.freq == other.freq
+    def put(self, item):
+        self.items.insert(0,item)
+        self.__bubbleSort()
 
+    def __bubbleSort(self):
+        for passnum in range(len(self.items)-1,0,-1):
+            for i in range(passnum):
+                if self.items[i].prob>self.items[i+1].prob:
+                    temp = self.items[i]
+                    self.items[i] = self.items[i+1]
+                    self.items[i+1] = temp
+                    
+    def create_tree(self):
+        while(len(self.items)>1):
+            min1 = self.items.pop(0)
+            min2 = self.items.pop(0)
+            
+            new_node = Prob_node()
+            new_node.left_child = min1
+            new_node.right_child = min2
+            new_node.left_child.code = "0"
+            new_node.right_child.code = "1"
+            new_node.sum_childs()
+            
+            self.put(new_node)
 
-class HuffmanCoding:
-	def __init__(self, path):
-		self.path = path
-		self.heap = []
-		self.codes = {}
-		self.reverse_mapping = {}
-
-	# functions for compression:
-
-	def make_frequency_dict(self, text):
-		frequency = {}
-		for character in text:
-			if not character in frequency:
-				frequency[character] = 0
-			frequency[character] += 1
-		return frequency
-
-	def make_heap(self, frequency):
-		for key in frequency:
-			node = HeapNode(key, frequency[key])
-			heapq.heappush(self.heap, node)
-
-	def merge_nodes(self):
-		while(len(self.heap)>1):
-			node1 = heapq.heappop(self.heap)
-			node2 = heapq.heappop(self.heap)
-
-			merged = HeapNode(None, node1.freq + node2.freq)
-			merged.left = node1
-			merged.right = node2
-
-			heapq.heappush(self.heap, merged)
+        return self.items[0]
+    
 
 
-	def make_codes_helper(self, root, current_code):
-		if(root == None):
-			return
+def huffman_coding(prob_list):
+    """
+    Dado un array de (simbolo,probabilidad) retorna el diccionario de huffman asociado
+    """
+    cola = PrioQueue()
 
-		if(root.char != None):
-			self.codes[root.char] = current_code
-			self.reverse_mapping[current_code] = root.char
-			return
+    for i in prob_list:
+        cola.put(Prob_node(symbol= i[0],prob = i[1]))
+    
+    cola.put(Prob_node(symbol = "eof", prob = 0))
 
-		self.make_codes_helper(root.left, current_code + "0")
-		self.make_codes_helper(root.right, current_code + "1")
+    tree = cola.create_tree()
 
-
-	def make_codes(self):
-		root = heapq.heappop(self.heap)
-		current_code = ""
-		self.make_codes_helper(root, current_code)
-
-
-	def get_encoded_text(self, text):
-		encoded_text = ""
-		for character in text:
-			encoded_text += self.codes[character]
-		return encoded_text
+    dictionary = {}
+    
+    search_tree_codes(tree,"",dictionary)
 
 
-	def pad_encoded_text(self, encoded_text):
-		extra_padding = 8 - len(encoded_text) % 8
-		for i in range(extra_padding):
-			encoded_text += "0"
+    return dictionary
 
-		padded_info = "{0:08b}".format(extra_padding)
-		encoded_text = padded_info + encoded_text
-		return encoded_text
+def search_tree_codes(tree,code,dictionary):
+    if(tree.left_child!=None and tree.right_child!=None):
+        search_tree_codes(tree.left_child,code + tree.code,dictionary)
+        search_tree_codes(tree.right_child,code + tree.code,dictionary)
+    else:
+        dictionary[tree.symbol] = code+tree.code
+    
 
+def encode(dictionary, array):
+    """
+    Codifica un array mediante el diccionario de huffman
+    """
 
-	def get_byte_array(self, padded_encoded_text):
-		if(len(padded_encoded_text) % 8 != 0):
-			print("Encoded text not padded properly")
-			exit(0)
+    code = "1"
 
-		b = bytearray()
-		for i in range(0, len(padded_encoded_text), 8):
-			byte = padded_encoded_text[i:i+8]
-			b.append(int(byte, 2))
-		return b
+    for i in array:
+        code = code + dictionary[i]
 
+    code = code + dictionary["eof"]
+    code = code + len(code)%8 * "0"
 
-	def compress(self):
-		filename, file_extension = os.path.splitext(self.path)
-		output_path = filename + ".bin"
+    return int(code,2)
 
-		with open(self.path, 'r+') as file, open(output_path, 'wb') as output:
-			text = file.read()
-			text = text.rstrip()
+def decode(dictionary, string_bin):
+    code = ""
+    
+    array = np.zeros(shape=(480*848),dtype=np.uint8)
 
-			frequency = self.make_frequency_dict(text)
-			self.make_heap(frequency)
-			self.merge_nodes()
-			self.make_codes()
+    cnt = 0
+    string_bin = string_bin[3:]
 
-			encoded_text = self.get_encoded_text(text)
-			padded_encoded_text = self.pad_encoded_text(encoded_text)
+    for i in string_bin:
 
-			b = self.get_byte_array(padded_encoded_text)
-			output.write(bytes(b))
+        code = code + i
 
-		print("Compressed")
-		return output_path
+        if code == dictionary["eof"]:
+            break
 
+        if code in dictionary.values():
+            array[cnt] = list(dictionary.keys())[list(dictionary.values()).index(code)]
+            code=""
+            cnt+=1
 
-	""" functions for decompression: """
-
-
-	def remove_padding(self, padded_encoded_text):
-		padded_info = padded_encoded_text[:8]
-		extra_padding = int(padded_info, 2)
-
-		padded_encoded_text = padded_encoded_text[8:] 
-		encoded_text = padded_encoded_text[:-1*extra_padding]
-
-		return encoded_text
-
-	def decode_text(self, encoded_text):
-		current_code = ""
-		decoded_text = ""
-
-		for bit in encoded_text:
-			current_code += bit
-			if(current_code in self.reverse_mapping):
-				character = self.reverse_mapping[current_code]
-				decoded_text += character
-				current_code = ""
-
-		return decoded_text
-
-
-	def decompress(self, input_path):
-		filename, file_extension = os.path.splitext(self.path)
-		output_path = filename + "_decompressed" + ".txt"
-
-		with open(input_path, 'rb') as file, open(output_path, 'w') as output:
-			bit_string = ""
-
-			byte = file.read(1)
-			while(len(byte) > 0):
-				byte = ord(byte)
-				bits = bin(byte)[2:].rjust(8, '0')
-				bit_string += bits
-				byte = file.read(1)
-
-			encoded_text = self.remove_padding(bit_string)
-
-			decompressed_text = self.decode_text(encoded_text)
-			
-			output.write(decompressed_text)
-
-		print("Decompressed")
-		return output_path
+    
+    return array.reshape(480,848)
+        
+            
